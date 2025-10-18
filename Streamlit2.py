@@ -12,38 +12,50 @@ st.set_page_config(
 )
 
 st.title("⚖️ Інтерактивний дашборд судових справ України")
-st.markdown("Аналіз судових рішень за регіоном, статтею та роками.")
+st.markdown("Аналіз судових рішень за регіонами, статтями та роками.")
 
 # ---------------------------------------
 # Завантаження CSV
 # ---------------------------------------
-uploaded_file = st.file_uploader("📂 Завантаж CSV із судовими справами", type=["csv"])
+uploaded_file = st.file_uploader("📂 Завантаж CSV із судових справ", type=["csv"])
 
 if uploaded_file:
+    # Читання CSV через pandas
     df = pd.read_csv(uploaded_file, parse_dates=["date"])
     
-    # Перевірка потрібних колонок
-    required = {"region", "article", "category", "date"}
-    if not required.issubset(df.columns):
-        st.error(f"CSV має містити колонки: {', '.join(required)}")
+    # Перевірка, чи є необхідні колонки
+    required_cols = {"region", "article", "category", "date"}
+    if not required_cols.issubset(df.columns):
+        st.error(f"Файл має містити колонки: {', '.join(required_cols)}")
         st.stop()
 
     # ---------------------------------------
-    # Фільтри
+    # Бічна панель із фільтрами
     # ---------------------------------------
     st.sidebar.header("🔍 Фільтри")
 
-    regions = st.sidebar.multiselect("Регіон", df["region"].unique())
-    articles = st.sidebar.multiselect("Стаття", df["article"].unique())
+    regions = st.sidebar.multiselect(
+        "Оберіть регіон(и):",
+        options=sorted(df["region"].unique()),
+        default=None
+    )
+
+    articles = st.sidebar.multiselect(
+        "Оберіть статтю(ї):",
+        options=sorted(df["article"].unique()),
+        default=None
+    )
+
     date_range = st.sidebar.date_input(
-        "Період",
+        "Період розгляду справ:",
         [df["date"].min(), df["date"].max()]
     )
 
     # ---------------------------------------
-    # Фільтрація даних
+    # Фільтрація даних через pandas
     # ---------------------------------------
     filtered = df.copy()
+
     if regions:
         filtered = filtered[filtered["region"].isin(regions)]
     if articles:
@@ -52,7 +64,10 @@ if uploaded_file:
         start, end = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
         filtered = filtered[(filtered["date"] >= start) & (filtered["date"] <= end)]
 
-    st.markdown("### 📋 Відфільтровані справи")
+    # ---------------------------------------
+    # Таблиця з даними
+    # ---------------------------------------
+    st.markdown("### 📋 Відфільтровані судові справи")
     st.dataframe(filtered, use_container_width=True)
 
     # ---------------------------------------
@@ -70,9 +85,9 @@ if uploaded_file:
     st.pyplot(fig1)
 
     # ---------------------------------------
-    # Тенденції по роках
+    # Аналіз тенденцій по роках
     # ---------------------------------------
-    st.markdown("### 📈 Тенденції по роках")
+    st.markdown("### 📈 Тенденції кількості справ по роках")
 
     filtered["year"] = filtered["date"].dt.year
     year_counts = filtered["year"].value_counts().sort_index()
@@ -84,6 +99,6 @@ if uploaded_file:
     ax2.set_title("Динаміка кількості судових справ по роках")
     st.pyplot(fig2)
 
-    st.success("✅ Аналіз завершено!")
+    st.success("✅ Аналіз виконано успішно!")
 else:
-    st.info("Будь ласка, завантаж CSV-файл для початку аналізу.")
+    st.info("Будь ласка, завантаж CSV-файл для початку роботи.")
