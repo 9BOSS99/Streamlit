@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import matplotlib.pyplot as plt
 
 # ---------------------------------------
 # Налаштування сторінки
@@ -12,52 +12,38 @@ st.set_page_config(
 )
 
 st.title("⚖️ Інтерактивний дашборд судових справ України")
-st.markdown("Аналіз даних судових рішень за регіонами, статтями та роками.")
+st.markdown("Аналіз судових рішень за регіоном, статтею та роками.")
 
 # ---------------------------------------
 # Завантаження CSV
 # ---------------------------------------
-uploaded_file = st.file_uploader(
-    "📂 Завантаж CSV із реєстру судових рішень",
-    type=["csv"]
-)
+uploaded_file = st.file_uploader("📂 Завантаж CSV із судовими справами", type=["csv"])
 
 if uploaded_file:
-    # Читання CSV
     df = pd.read_csv(uploaded_file, parse_dates=["date"])
     
-    # Перевірка колонок
-    required_cols = {"region", "article", "category", "date"}
-    if not required_cols.issubset(df.columns):
-        st.error(f"CSV повинен містити колонки: {', '.join(required_cols)}")
+    # Перевірка потрібних колонок
+    required = {"region", "article", "category", "date"}
+    if not required.issubset(df.columns):
+        st.error(f"CSV має містити колонки: {', '.join(required)}")
         st.stop()
 
     # ---------------------------------------
-    # Бічна панель із фільтрами
+    # Фільтри
     # ---------------------------------------
     st.sidebar.header("🔍 Фільтри")
-    regions = st.sidebar.multiselect(
-        "Регіон:",
-        options=sorted(df["region"].unique()),
-        default=None
-    )
 
-    articles = st.sidebar.multiselect(
-        "Стаття:",
-        options=sorted(df["article"].unique()),
-        default=None
-    )
-
+    regions = st.sidebar.multiselect("Регіон", df["region"].unique())
+    articles = st.sidebar.multiselect("Стаття", df["article"].unique())
     date_range = st.sidebar.date_input(
-        "Період:",
+        "Період",
         [df["date"].min(), df["date"].max()]
     )
 
     # ---------------------------------------
-    # Фільтрація
+    # Фільтрація даних
     # ---------------------------------------
     filtered = df.copy()
-
     if regions:
         filtered = filtered[filtered["region"].isin(regions)]
     if articles:
@@ -66,7 +52,7 @@ if uploaded_file:
         start, end = pd.Timestamp(date_range[0]), pd.Timestamp(date_range[1])
         filtered = filtered[(filtered["date"] >= start) & (filtered["date"] <= end)]
 
-    st.markdown("### 📋 Відфільтровані дані")
+    st.markdown("### 📋 Відфільтровані справи")
     st.dataframe(filtered, use_container_width=True)
 
     # ---------------------------------------
@@ -74,39 +60,29 @@ if uploaded_file:
     # ---------------------------------------
     st.markdown("### 📊 Кількість справ за категоріями")
 
-    cat_count = (
-        filtered["category"]
-        .value_counts()
-        .reset_index()
-        .rename(columns={"index": "Категорія", "category": "Кількість"})
-    )
+    cat_counts = filtered["category"].value_counts()
 
-    fig_bar = px.bar(
-        cat_count,
-        x="Категорія",
-        y="Кількість",
-        color="Категорія",
-        text_auto=True,
-        title="Розподіл справ за категоріями"
-    )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    fig1, ax1 = plt.subplots()
+    cat_counts.plot(kind="bar", ax=ax1)
+    ax1.set_xlabel("Категорія")
+    ax1.set_ylabel("Кількість справ")
+    ax1.set_title("Розподіл справ за категоріями")
+    st.pyplot(fig1)
 
     # ---------------------------------------
-    # Аналіз тенденцій по роках
+    # Тенденції по роках
     # ---------------------------------------
     st.markdown("### 📈 Тенденції по роках")
 
     filtered["year"] = filtered["date"].dt.year
-    yearly = filtered.groupby("year").size().reset_index(name="Кількість справ")
+    year_counts = filtered["year"].value_counts().sort_index()
 
-    fig_line = px.line(
-        yearly,
-        x="year",
-        y="Кількість справ",
-        markers=True,
-        title="Динаміка кількості судових справ по роках"
-    )
-    st.plotly_chart(fig_line, use_container_width=True)
+    fig2, ax2 = plt.subplots()
+    year_counts.plot(kind="line", marker="o", ax=ax2)
+    ax2.set_xlabel("Рік")
+    ax2.set_ylabel("Кількість справ")
+    ax2.set_title("Динаміка кількості судових справ по роках")
+    st.pyplot(fig2)
 
     st.success("✅ Аналіз завершено!")
 else:
