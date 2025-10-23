@@ -1,91 +1,43 @@
+# Streamlit2.py
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# -------------------------------
-# 🔹 Налаштування сторінки
-# -------------------------------
-st.set_page_config(
-    page_title="Інтерактивний дашборд судових справ",
-    page_icon="⚖️",
-    layout="wide"
-)
+st.set_page_config(page_title="Дашборд судових справ", layout="wide")
+st.title("Інтерактивний дашборд судових справ")
 
-st.title("⚖️ Інтерактивний дашборд судових справ")
-st.write("Аналіз даних із реєстру судових рішень України")
+# --- 1. Завантаження CSV з GitHub (публічне посилання) ---
+CSV_URL = "https://raw.githubusercontent.com/your_user/your_repo/main/court_cases.csv"
+df = pd.read_csv(CSV_URL, parse_dates=['Дата'])
 
-# -------------------------------
-# 🔹 Завантаження CSV
-# -------------------------------
-st.sidebar.header("1️⃣ Завантаження даних")
+# --- 2. Фільтри ---
+регіони = st.sidebar.multiselect("Оберіть регіон", options=df['Регіон'].unique(), default=df['Регіон'].unique())
+статті = st.sidebar.multiselect("Оберіть статтю", options=df['Стаття'].unique(), default=df['Стаття'].unique())
+дата = st.sidebar.date_input("Оберіть дату (початок та кінець)", [df['Дата'].min(), df['Дата'].max()])
 
-uploaded_file = st.sidebar.file_uploader("Завантаж CSV-файл", type=["csv"])
+filtered = df[
+    (df['Регіон'].isin(регіони)) &
+    (df['Стаття'].isin(статті)) &
+    (df['Дата'].between(pd.to_datetime(date[0]), pd.to_datetime(date[1])))
+]
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+st.write(f"Кількість справ після фільтрації: {len(filtered)}")
 
-    # Перевірка мінімальних потрібних колонок
-    required_columns = {"Регіон", "Стаття", "Категорія", "Дата"}
-    if not required_columns.issubset(df.columns):
-        st.error(f"CSV повинен містити колонки: {', '.join(required_columns)}")
-    else:
-        # -------------------------------
-        # 🔹 Обробка даних
-        # -------------------------------
-        df["Дата"] = pd.to_datetime(df["Дата"], errors="coerce")
-        df["Рік"] = df["Дата"].dt.year
+# --- 3. Діаграма кількості справ за категоріями ---
+st.subheader("Кількість справ за статтями")
+category_counts = filtered['Стаття'].value_counts()
+fig, ax = plt.subplots()
+category_counts.plot(kind='bar', ax=ax, color='skyblue')
+ax.set_xlabel("Стаття")
+ax.set_ylabel("Кількість справ")
+st.pyplot(fig)
 
-        # -------------------------------
-        # 🔹 Фільтри
-        # -------------------------------
-        st.sidebar.header("2️⃣ Фільтри")
-
-        regions = df["Регіон"].dropna().unique()
-        articles = df["Стаття"].dropna().unique()
-        years = sorted(df["Рік"].dropna().unique())
-
-        selected_region = st.sidebar.multiselect("Оберіть регіон(и)", regions, default=regions[:3])
-        selected_article = st.sidebar.multiselect("Оберіть статтю(ї)", articles, default=articles[:3])
-        selected_year = st.sidebar.slider("Оберіть діапазон років", int(min(years)), int(max(years)), (int(min(years)), int(max(years))))
-
-        filtered_df = df[
-            (df["Регіон"].isin(selected_region)) &
-            (df["Стаття"].isin(selected_article)) &
-            (df["Рік"] >= selected_year[0]) &
-            (df["Рік"] <= selected_year[1])
-        ]
-
-        st.subheader("📊 Відфільтровані дані")
-        st.dataframe(filtered_df)
-
-        # -------------------------------
-        # 🔹 Діаграма кількості справ за категоріями
-        # -------------------------------
-        st.subheader("📈 Кількість справ за категоріями")
-
-        category_counts = filtered_df["Категорія"].value_counts()
-
-        fig1, ax1 = plt.subplots()
-        ax1.bar(category_counts.index, category_counts.values)
-        ax1.set_xlabel("Категорія")
-        ax1.set_ylabel("Кількість справ")
-        ax1.set_title("Кількість справ за категоріями")
-        plt.xticks(rotation=45)
-        st.pyplot(fig1)
-
-        # -------------------------------
-        # 🔹 Аналіз тенденцій по роках
-        # -------------------------------
-        st.subheader("📅 Тенденції по роках")
-
-        yearly_counts = filtered_df.groupby("Рік").size()
-
-        fig2, ax2 = plt.subplots()
-        ax2.plot(yearly_counts.index, yearly_counts.values, marker='o')
-        ax2.set_xlabel("Рік")
-        ax2.set_ylabel("Кількість справ")
-        ax2.set_title("Динаміка кількості справ по роках")
-        st.pyplot(fig2)
-
-else:
-    st.info("⬅️ Будь ласка, завантаж CSV-файл для початку аналізу.")
+# --- 4. Аналіз тенденцій по роках ---
+st.subheader("Тенденції по роках")
+filtered['Рік'] = filtered['Дата'].dt.year
+year_counts = filtered.groupby('Рік').size()
+fig2, ax2 = plt.subplots()
+year_counts.plot(kind='line', marker='o', ax=ax2)
+ax2.set_xlabel("Рік")
+ax2.set_ylabel("Кількість справ")
+st.pyplot(fig2)
